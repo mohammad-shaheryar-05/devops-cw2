@@ -1,0 +1,13 @@
+cat > package.json << 'EOF'
+{
+  "name": "devops-cw2",
+  "version": "1.0.0",
+  "description": "DevOps Coursework 2 Node.js App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
+EOF
