@@ -64,6 +64,19 @@ pipeline {
     }
     
     post {
+        success {
+        echo 'Build succeeded!'
+    }
+    failure {
+        node {
+            sh 'echo Build failed. Add your cleanup or notify steps here.'
+        }
+    }
+    always {
+        node {
+            sh 'echo Always runs, like cleanup'
+        }
+    }
         always {
             sh "docker logout"
         }
