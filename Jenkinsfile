@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_HUB_CREDS = credentials('dockerhub')
         APP_VERSION = "${env.BUILD_NUMBER}"
-        DOCKER_IMAGE = "your-dockerhub-username/cw2-server"
+        DOCKER_IMAGE = "shaheryarmohammad05/cw2-server"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         KUBE_CONFIG = credentials('kubeconfig')
     }
