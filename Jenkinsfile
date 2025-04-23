@@ -1,73 +1,54 @@
 pipeline {
     agent any
-    
+
     environment {
-        DOCKER_HUB_CREDS = credentials('dockerhub')
-        APP_VERSION = "${env.BUILD_NUMBER}"
-        DOCKER_IMAGE = "shaheryarmohammad05/cw2-server"
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        KUBE_CONFIG = credentials('kubeconfig')
+        DOCKER_IMAGE = "shaheryarmohammad05/cw2-server:latest"
+        DOCKER_CREDENTIALS_ID = "dockerhub" // Update this if your Jenkins credentials ID is different
     }
-    
+
     stages {
-        stage('Checkout') {
+        stage('Clone repository') {
             steps {
-                checkout scm
+                git 'https://github.com/mohammad-shaheryar-05/devops-cw2.git'
             }
         }
-        
+
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
         }
-        
-        stage('Test Container') {
+
+        stage('Push Docker Image') {
             steps {
-                sh """
-                docker run -d --name test-container-${BUILD_NUMBER} ${DOCKER_IMAGE}:${DOCKER_TAG}
-                sleep 5
-                CONTAINER_ID=\$(docker ps -q -f name=test-container-${BUILD_NUMBER})
-                if [ -z "\$CONTAINER_ID" ]; then
-                    echo "Container failed to start"
-                    exit 1
-                fi
-                echo "Container is running successfully"
-                docker stop test-container-${BUILD_NUMBER}
-                docker rm test-container-${BUILD_NUMBER}
-                """
+                withCredentials([usernamePassword(credentialsId: "$DOCKER_CREDENTIALS_ID", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                    '''
+                }
             }
         }
-        
-        stage('Push to Docker Hub') {
-            steps {
-                sh "echo ${DOCKER_HUB_CREDS_PSW} | docker login -u ${DOCKER_HUB_CREDS_USR} --password-stdin"
-                sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
-            }
-        }
-        
+
         stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    // Connect to production server via SSH and update the deployment
+                sshagent (credentials: ['ssh-key']) {
                     sh """
-                    ssh ubuntu@your-production-server-ip '
-                    kubectl set image deployment/cw2-server cw2-server=${DOCKER_IMAGE}:${DOCKER_TAG}
-                    kubectl rollout status deployment/cw2-server
-                    '
+                        ssh -o StrictHostKeyChecking=no ubuntu@your-production-server-ip '
+                        kubectl set image deployment/cw2-server cw2-server=$DOCKER_IMAGE
+                        kubectl rollout status deployment/cw2-server
+                        '
                     """
                 }
             }
         }
     }
-    
+
     post {
         always {
-            node {
-            sh "docker logout"
-        
-}}
+            node('master') { // or your agent label
+                sh "docker logout"
+            }
+        }
     }
 }
