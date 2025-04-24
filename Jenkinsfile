@@ -81,26 +81,45 @@ EOL
                     
                     # Connect to the server using the key and execute commands
                     ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
-                        # First check if deployment exists
-                        if kubectl get deployment cw2-server &>/dev/null; then
-                            # Update the image with latest tag
+                        # Apply the deployment using the existing deployment.yaml
+                        echo "Applying deployment from existing deployment.yaml file"
+                        kubectl apply -f deployment.yaml
+                        
+                        # Check if the image in the deployment matches our pushed image
+                        CURRENT_IMAGE=$(kubectl get deployment cw2-server -o jsonpath="{.spec.template.spec.containers[0].image}")
+                        
+                        if [ "$CURRENT_IMAGE" != "shaheryarmohammad05/cw2-server:latest" ]; then
+                            echo "Updating image to shaheryarmohammad05/cw2-server:latest"
                             kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest
-                            # Delete any failed pods to force recreation
-                            kubectl get pods -l app=cw2-server | grep -i Error | awk \"{print \\$1}\" | xargs -r kubectl delete pod
-                            # Set a longer timeout for the rollout status
-                            kubectl rollout status deployment/cw2-server --timeout=300s
-                        else
-                            echo "Deployment not found, creating new deployment"
-                            # You would need to apply your k8s yaml here or create the deployment
-                            # kubectl apply -f kubernetes/deployment.yaml
                         fi
+                        
+                        # Delete any failed pods to force recreation
+                        echo "Restarting any failed pods..."
+                        kubectl get pods -l app=cw2-server | grep -i CrashLoop | awk "{print \\$1}" | xargs -r kubectl delete pod
+                        
+                        # Force a rollout restart in case the image is the same but content updated
+                        echo "Force rolling restart of deployment"
+                        kubectl rollout restart deployment cw2-server
+                        
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/cw2-server --timeout=300s
+                        
                         # Debug information
                         echo "--- Deployment Status ---"
                         kubectl describe deployment cw2-server
                         echo "--- Pod Status ---"
                         kubectl get pods -l app=cw2-server
                         echo "--- Pod Logs ---"
-                        kubectl logs -l app=cw2-server --tail=50
+                        kubectl logs -l app=cw2-server --tail=50 || echo "No logs available yet"
+                        
+                        # Check if any pods are in CrashLoopBackOff and show more details
+                        if kubectl get pods -l app=cw2-server | grep -i CrashLoop; then
+                            echo "WARNING: Some pods are in CrashLoopBackOff state. Checking pod details:"
+                            CRASH_POD=$(kubectl get pods -l app=cw2-server | grep -i CrashLoop | head -1 | awk "{print \\$1}")
+                            kubectl describe pod $CRASH_POD
+                            echo "--- Last few log lines from crashed pod ---"
+                            kubectl logs $CRASH_POD --previous || echo "No previous logs available"
+                        fi
                     '
                     
                     # Clean up
