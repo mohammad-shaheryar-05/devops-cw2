@@ -35,12 +35,10 @@ pipeline {
         }
         stage('Push Docker Image') {
             steps {
-                withCredentials([string(credentialsId: 'docker-hub-password', variable: 'DOCKER_PASS')]) {
-                    sh """
-                    echo \${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                    """
-                }
+                // NOTE: This approach is for testing only and is not secure
+                // You should replace this with proper credential management after confirming it works
+                sh "docker login -u shaheryarmohammad5@gmail.com -p 'Sheri@4535'"
+                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
         stage('Deploy to Kubernetes') {
