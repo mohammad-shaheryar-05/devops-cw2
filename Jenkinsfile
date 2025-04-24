@@ -1,9 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        node {
+            label 'Jenkins'  // Match your Jenkins agent's label (replace 'Jenkins' if needed)
+        }
+    }
 
     environment {
         DOCKER_IMAGE = "shaheryarmohammad05/cw2-server:latest"
-        DOCKER_CREDENTIALS_ID = "dockerhub" // Update this if your Jenkins credentials ID is different
+        DOCKER_CREDENTIALS_ID = "dockerhub" 
     }
 
     stages {
@@ -21,7 +25,11 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: "$DOCKER_CREDENTIALS_ID", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(
+                    credentialsId: "$DOCKER_CREDENTIALS_ID", 
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push $DOCKER_IMAGE
@@ -32,7 +40,7 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sshagent (credentials: ['ssh-key']) {
+                sshagent(credentials: ['ssh-key']) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ubuntu@your-production-server-ip '
                         kubectl set image deployment/cw2-server cw2-server=$DOCKER_IMAGE
@@ -46,7 +54,7 @@ pipeline {
 
     post {
         always {
-            node('master') { // or your agent label
+            node('Jenkins') {  // Match your agent label here too
                 sh "docker logout"
             }
         }
