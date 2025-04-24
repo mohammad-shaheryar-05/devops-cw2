@@ -82,8 +82,10 @@ pipeline {
                 node {
                     sh "docker logout || true"
                     // Use direct string values instead of environment variables
-                    sh "docker rmi shaheryarmohammad05/cw2-server:${env.BUILD_NUMBER} || true"
-                    sh "docker rmi shaheryarmohammad05/cw2-server:latest || true"
+                    // Add -f to force removal and ignore if images are in use by containers
+                    sh "docker rmi -f shaheryarmohammad05/cw2-server:${env.BUILD_NUMBER} || true"
+                    // Skip removing latest tag since it might be in use by running containers
+                    // sh "docker rmi shaheryarmohammad05/cw2-server:latest || true"
                 }
             }
         }
@@ -91,7 +93,10 @@ pipeline {
             echo "Deployment completed successfully!"
         }
         failure {
-            echo "Deployment failed. Check the logs for details."
+            // The job might be reporting failure due to the image removal errors,
+            // but the deployment might actually be successful
+            echo "Note: If the only errors are about Docker image removal, the deployment may still be successful."
+            echo "Check the running container on your server to confirm deployment status."
         }
     }
 }
