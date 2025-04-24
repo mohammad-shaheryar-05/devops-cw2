@@ -2,9 +2,8 @@ pipeline {
     agent any
     environment {
         DOCKER_USER = 'shaheryarmohammad05'
-        DOCKER_PASS = credentials('docker-hub-password')
         IMAGE_NAME = 'shaheryarmohammad05/cw2-server'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        IMAGE_TAG = 'latest'  // Changed to use 'latest' instead of BUILD_NUMBER
         PRODUCTION_SERVER = '44.223.131.84'
     }
     stages {
@@ -16,7 +15,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
             }
         }
         stage('Test Docker Image') {
@@ -38,9 +36,10 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 withCredentials([string(credentialsId: 'docker-hub-password', variable: 'DOCKER_PASS')]) {
-                    sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "docker push ${IMAGE_NAME}:latest"
+                    sh """
+                    echo \${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
+                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -51,7 +50,7 @@ pipeline {
                     ssh -o StrictHostKeyChecking=no ubuntu@44.223.131.84 '
                         # First check if deployment exists
                         if kubectl get deployment cw2-server &>/dev/null; then
-                            # Update the image
+                            # Update the image with latest tag
                             kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest
                             # Delete any failed pods to force recreation
                             kubectl get pods -l app=cw2-server | grep -i Error | awk \'{print $1}\' | xargs -r kubectl delete pod
@@ -77,26 +76,16 @@ pipeline {
     }
     post {
         always {
-            script {
-                // Wrap post actions in a node block to provide required context
-                node {
-                    sh "docker logout || true"
-                    // Use direct string values instead of environment variables
-                    // Add -f to force removal and ignore if images are in use by containers
-                    sh "docker rmi -f shaheryarmohammad05/cw2-server:${env.BUILD_NUMBER} || true"
-                    // Skip removing latest tag since it might be in use by running containers
-                    // sh "docker rmi shaheryarmohammad05/cw2-server:latest || true"
-                }
-            }
+            echo "Cleaning up..."
+            sh "docker logout || true"
+            // No image cleanup since the container may be using it
         }
         success {
             echo "Deployment completed successfully!"
         }
         failure {
-            // The job might be reporting failure due to the image removal errors,
-            // but the deployment might actually be successful
-            echo "Note: If the only errors are about Docker image removal, the deployment may still be successful."
-            echo "Check the running container on your server to confirm deployment status."
+            echo "Note: If the only errors are about Docker Hub credentials, check your Jenkins credentials configuration."
+            echo "The deployment may still be successful. Check the running containers on your server."
         }
     }
 }
