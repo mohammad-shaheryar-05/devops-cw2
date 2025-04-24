@@ -78,11 +78,15 @@ pipeline {
     post {
         always {
             script {
+                // Store the values in local variables before entering the node block
+                def imageNameValue = env.IMAGE_NAME
+                def imageTagValue = env.IMAGE_TAG
+                
                 // Wrap post actions in a node block to provide required context
                 node {
                     sh "docker logout || true"
-                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
-                    sh "docker rmi ${IMAGE_NAME}:latest || true"
+                    sh "docker rmi ${imageNameValue}:${imageTagValue} || true"
+                    sh "docker rmi ${imageNameValue}:latest || true"
                 }
             }
         }
