@@ -52,7 +52,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    ssh ubuntu@54.164.201.80 '
+                    ssh ubuntu@54.227.173.119 '
                     kubectl set image deployment/cw2-server cw2-server=${DOCKER_IMAGE}:${DOCKER_TAG}
                     kubectl rollout status deployment/cw2-server
                     '
