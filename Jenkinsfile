@@ -81,27 +81,77 @@ EOL
                     
                     # Connect to the server using the key and execute commands
                     ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
+                        # First, let\'s verify and fix the package.json
+                        echo "Checking and fixing package.json file..."
+                        cat > /tmp/package.json << EOL
+{
+  "name": "cw2-server",
+  "version": "1.0.0",
+  "description": "A server for CW2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
+EOL
+                        
+                        # Create a fixed Dockerfile
+                        echo "Creating a proper Dockerfile..."
+                        cat > /tmp/Dockerfile << EOL
+FROM node:14-alpine
+
+# Create app directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json files
+COPY package.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY server.js ./
+
+# Expose the port the app runs on
+EXPOSE 8080
+
+# Command to run the application
+CMD ["node", "server.js"]
+EOL
+                        
+                        # Check if we need to rebuild the image locally
+                        echo "Creating a temporary build directory..."
+                        mkdir -p /tmp/build-temp
+                        cp /tmp/package.json /tmp/build-temp/
+                        cp /tmp/Dockerfile /tmp/build-temp/
+                        cp ~/devops-cw2/server.js /tmp/build-temp/
+                        
+                        cd /tmp/build-temp
+                        
+                        echo "Building a fixed Docker image locally..."
+                        docker build -t shaheryarmohammad05/cw2-server:latest .
+                        
+                        # Login to Docker Hub
+                        echo "Logging in to Docker Hub..."
+                        echo "Sheri@4535" | docker login -u shaheryarmohammad5@gmail.com --password-stdin
+                        
+                        # Push the image
+                        echo "Pushing the fixed image to Docker Hub..."
+                        docker push shaheryarmohammad05/cw2-server:latest
+                        
                         # Apply the deployment using the existing deployment.yaml
                         echo "Applying deployment from existing deployment.yaml file"
                         kubectl apply -f deployment.yaml
                         
-                        # Check if the image in the deployment matches our pushed image
-                        CURRENT_IMAGE=$(kubectl get deployment cw2-server -o jsonpath="{.spec.template.spec.containers[0].image}")
-                        
-                        if [ "$CURRENT_IMAGE" != "shaheryarmohammad05/cw2-server:latest" ]; then
-                            echo "Updating image to shaheryarmohammad05/cw2-server:latest"
-                            kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest
-                        fi
-                        
-                        # Delete any failed pods to force recreation
-                        echo "Restarting any failed pods..."
-                        kubectl get pods -l app=cw2-server | grep -i CrashLoop | awk "{print \\$1}" | xargs -r kubectl delete pod
-                        
-                        # Force a rollout restart in case the image is the same but content updated
-                        echo "Force rolling restart of deployment"
-                        kubectl rollout restart deployment cw2-server
+                        # Delete all existing pods to force recreation with the fixed image
+                        echo "Deleting all existing pods to force recreation with fixed image..."
+                        kubectl delete pods -l app=cw2-server
                         
                         # Wait for rollout to complete
+                        sleep 5
                         kubectl rollout status deployment/cw2-server --timeout=300s
                         
                         # Debug information
@@ -112,14 +162,13 @@ EOL
                         echo "--- Pod Logs ---"
                         kubectl logs -l app=cw2-server --tail=50 || echo "No logs available yet"
                         
-                        # Check if any pods are in CrashLoopBackOff and show more details
-                        if kubectl get pods -l app=cw2-server | grep -i CrashLoop; then
-                            echo "WARNING: Some pods are in CrashLoopBackOff state. Checking pod details:"
-                            CRASH_POD=$(kubectl get pods -l app=cw2-server | grep -i CrashLoop | head -1 | awk "{print \\$1}")
-                            kubectl describe pod $CRASH_POD
-                            echo "--- Last few log lines from crashed pod ---"
-                            kubectl logs $CRASH_POD --previous || echo "No previous logs available"
-                        fi
+                        # Cleanup
+                        echo "Cleaning up temporary files..."
+                        rm -rf /tmp/build-temp
+                        rm /tmp/package.json
+                        rm /tmp/Dockerfile
+                        
+                        docker logout
                     '
                     
                     # Clean up
