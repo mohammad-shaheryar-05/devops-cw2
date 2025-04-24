@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     environment {
         DOCKER_USER = 'shaheryarmohammad05'
         DOCKER_PASS = credentials('docker-hub-password')
@@ -8,21 +7,18 @@ pipeline {
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         PRODUCTION_SERVER = '44.223.131.84'
     }
-
     stages {
         stage('Clone repository') {
             steps {
                 git url: 'https://github.com/mohammad-shaheryar-05/devops-cw2.git', branch: 'master'
             }
         }
-
         stage('Build Docker Image') {
             steps {
                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                 sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
             }
         }
-
         stage('Test Docker Image') {
             steps {
                 sh """
@@ -39,7 +35,6 @@ pipeline {
                 """
             }
         }
-
         stage('Push Docker Image') {
             steps {
                 withCredentials([string(credentialsId: 'docker-hub-password', variable: 'DOCKER_PASS')]) {
@@ -49,7 +44,6 @@ pipeline {
                 }
             }
         }
-
         stage('Deploy to Kubernetes') {
             steps {
                 sshagent(['ubuntu']) {
@@ -59,10 +53,8 @@ pipeline {
                         if kubectl get deployment cw2-server &>/dev/null; then
                             # Update the image
                             kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest
-
                             # Delete any failed pods to force recreation
                             kubectl get pods -l app=cw2-server | grep -i Error | awk \'{print $1}\' | xargs -r kubectl delete pod
-
                             # Set a longer timeout for the rollout status
                             kubectl rollout status deployment/cw2-server --timeout=300s
                         else
@@ -70,7 +62,6 @@ pipeline {
                             # You would need to apply your k8s yaml here or create the deployment
                             # kubectl apply -f kubernetes/deployment.yaml
                         fi
-
                         # Debug information
                         echo "--- Deployment Status ---"
                         kubectl describe deployment cw2-server
@@ -84,12 +75,16 @@ pipeline {
             }
         }
     }
-
     post {
         always {
-            sh "docker logout || true"
-            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
-            sh "docker rmi ${IMAGE_NAME}:latest || true"
+            script {
+                // Wrap post actions in a node block to provide required context
+                node {
+                    sh "docker logout || true"
+                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+                    sh "docker rmi ${IMAGE_NAME}:latest || true"
+                }
+            }
         }
         success {
             echo "Deployment completed successfully!"
