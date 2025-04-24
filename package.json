@@ -1,23 +1,12 @@
 {
   "name": "cw2-server",
   "version": "1.0.0",
+  "description": "A server for CW2",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.21.2"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mohammad-shaheryar-05/devops-cw2.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/mohammad-shaheryar-05/devops-cw2/issues"
-  },
-  "homepage": "https://github.com/mohammad-shaheryar-05/devops-cw2#readme",
-  "description": ""
+    "express": "^4.17.1"
+  }
 }
