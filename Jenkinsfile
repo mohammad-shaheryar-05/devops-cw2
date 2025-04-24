@@ -42,7 +42,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['ssh-key']) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@your-production-server-ip '
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.81.148.201 '
                         kubectl set image deployment/cw2-server cw2-server=$DOCKER_IMAGE
                         kubectl rollout status deployment/cw2-server
                         '
