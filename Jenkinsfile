@@ -10,6 +10,47 @@ pipeline {
         stage('Clone repository') {
             steps {
                 git url: 'https://github.com/mohammad-shaheryar-05/devops-cw2.git', branch: 'master'
+                
+                // Create correct package.json
+                sh '''
+                cat > package.json << 'EOL'
+{
+  "name": "cw2-server",
+  "version": "1.0.0",
+  "description": "A server for CW2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
+EOL
+
+                # Create a clean Dockerfile
+                cat > Dockerfile << 'EOL'
+FROM node:14-alpine
+
+# Create app directory
+WORKDIR /app
+
+# Copy package.json file
+COPY package.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY server.js ./
+
+# Expose the port the app runs on
+EXPOSE 8080
+
+# Command to run the application
+CMD ["node", "server.js"]
+EOL
+                '''
             }
         }
         stage('Build Docker Image') {
