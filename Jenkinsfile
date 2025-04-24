@@ -3,7 +3,7 @@ pipeline {
     environment {
         DOCKER_USER = 'shaheryarmohammad05'
         IMAGE_NAME = 'shaheryarmohammad05/cw2-server'
-        IMAGE_TAG = 'latest'  // Changed to use 'latest' instead of BUILD_NUMBER
+        IMAGE_TAG = 'latest'
         PRODUCTION_SERVER = '44.223.131.84'
     }
     stages {
@@ -35,18 +35,15 @@ pipeline {
         }
         stage('Push Docker Image') {
             steps {
-                // NOTE: This approach is for testing only and is not secure
-                // You should replace this with proper credential management after confirming it works
                 sh "docker login -u shaheryarmohammad5@gmail.com -p 'Sheri@4535'"
                 sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
         stage('Deploy to Kubernetes') {
             steps {
-                // Using the labsuser.pem key directly since we don't have SSH credentials configured
                 sh '''
-                    # Create temporary key file
-                    cat > /tmp/labsuser.pem << 'EOL'
+                # Create temporary key file
+                cat > /tmp/labsuser.pem << 'EOL'
 -----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAyXPdVeWLakRJZY36oMTtsy4l5p7g6ZFet5F8RZFKb/lajGpo
 4kxVTFBK4UI3CMkkTsuecTvVbsyAEZPspeFBaEr70jg0vBx3aJ6+YFNXsJri7Bbl
@@ -75,133 +72,15 @@ Df1UJrSQt+gvbT3pakGEOsmfDxnKnPwXeeL9iDbtwTq4Jy47KW5gRyT7qE/+9WOK
 tlrpGdDwBM/bNXApmiapTSmQBs33HxFJrIBnEtiS4s9zXk6qLfiw3A==
 -----END RSA PRIVATE KEY-----
 EOL
-                    
-                    # Set proper permissions
-                    chmod 600 /tmp/labsuser.pem
-                    
-                    # Create server.js file to copy to remote server
-                    cat > /tmp/server.js << 'EOL'
-var http = require('http');
-var requests = 0;
-var podname = process.env.HOSTNAME || 'default-hostname';  // Fallback in case HOSTNAME is undefined
-var startTime;
-var host;
-var handleRequest = function(request, response) {
-  response.setHeader('Content-Type', 'text/plain');
-  response.writeHead(200);
-  response.write("DevOps Coursework 2! | Running on: ");
-  response.write(host);
-  response.end(" | v=1\\n");
-  console.log("Running On:", host, "| Total Requests:", ++requests, "| App Uptime:", (new Date() - startTime) / 1000, "seconds", "| Log Time:", new Date());
-};
-var www = http.createServer(handleRequest);
-www.listen(8080, '0.0.0.0', function() {  // Ensure it listens on all interfaces
-  startTime = new Date();
-  host = process.env.HOSTNAME || 'default-hostname';  // Fallback value if not available
-  console.log("Started At:", startTime, "| Running On:", host, "\\n");
-});
-EOL
-                    
-                    # Connect to the server using the key and execute commands
-                    ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
-                        # First, let\\'s verify and fix the package.json
-                        echo "Checking and fixing package.json file..."
-                        cat > /tmp/package.json << EOL
-{
-  "name": "cw2-server",
-  "version": "1.0.0",
-  "description": "A server for CW2",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.17.1"
-  }
-}
-EOL
-                        
-                        # Create a fixed Dockerfile
-                        echo "Creating a proper Dockerfile..."
-                        cat > /tmp/Dockerfile << EOL
-FROM node:14-alpine
-
-# Create app directory
-WORKDIR /app
-
-# Copy package.json and package-lock.json files
-COPY package.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy application code
-COPY server.js ./
-
-# Expose the port the app runs on
-EXPOSE 8080
-
-# Command to run the application
-CMD ["node", "server.js"]
-EOL
-                        
-                        # Check if we need to rebuild the image locally
-                        echo "Creating a temporary build directory..."
-                        mkdir -p /tmp/build-temp
-                        cp /tmp/package.json /tmp/build-temp/
-                        cp /tmp/Dockerfile /tmp/build-temp/
-                    '
-                    
-                    # Now copy the server.js from Jenkins to the remote server
-                    scp -o StrictHostKeyChecking=no -i /tmp/labsuser.pem /tmp/server.js ubuntu@44.223.131.84:/tmp/build-temp/
-                    
-                    # Continue with the deployment on the remote server
-                    ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
-                        cd /tmp/build-temp
-                        
-                        echo "Building a fixed Docker image locally..."
-                        docker build -t shaheryarmohammad05/cw2-server:latest .
-                        
-                        # Login to Docker Hub
-                        echo "Logging in to Docker Hub..."
-                        echo "Sheri@4535" | docker login -u shaheryarmohammad5@gmail.com --password-stdin
-                        
-                        # Push the image
-                        echo "Pushing the fixed image to Docker Hub..."
-                        docker push shaheryarmohammad05/cw2-server:latest
-                        
-                        # Apply the deployment using the existing deployment.yaml
-                        echo "Applying deployment from existing deployment.yaml file"
-                        kubectl apply -f deployment.yaml
-                        
-                        # Delete all existing pods to force recreation with the fixed image
-                        echo "Deleting all existing pods to force recreation with fixed image..."
-                        kubectl delete pods -l app=cw2-server
-                        
-                        # Wait for rollout to complete
-                        sleep 5
-                        kubectl rollout status deployment/cw2-server --timeout=300s
-                        
-                        # Debug information
-                        echo "--- Deployment Status ---"
-                        kubectl describe deployment cw2-server
-                        echo "--- Pod Status ---"
-                        kubectl get pods -l app=cw2-server
-                        echo "--- Pod Logs ---"
-                        kubectl logs -l app=cw2-server --tail=50 || echo "No logs available yet"
-                        
-                        # Cleanup
-                        echo "Cleaning up temporary files..."
-                        rm -rf /tmp/build-temp
-                        rm /tmp/package.json
-                        rm /tmp/Dockerfile
-                        
-                        docker logout
-                    '
-                    
-                    # Clean up
-                    rm -f /tmp/labsuser.pem
-                    rm -f /tmp/server.js
+                
+                # Set proper permissions
+                chmod 600 /tmp/labsuser.pem
+                
+                # SSH commands to apply deployment and update image
+                ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 "kubectl apply -f deployment.yaml && kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest && kubectl rollout restart deployment cw2-server"
+                
+                # Clean up
+                rm -f /tmp/labsuser.pem
                 '''
             }
         }
@@ -210,14 +89,12 @@ EOL
         always {
             echo "Cleaning up..."
             sh "docker logout || true"
-            // No image cleanup since the container may be using it
         }
         success {
             echo "Deployment completed successfully!"
         }
         failure {
-            echo "Note: If the only errors are about Docker Hub credentials, check your Jenkins credentials configuration."
-            echo "The deployment may still be successful. Check the running containers on your server."
+            echo "Deployment failed. Check the logs for details."
         }
     }
 }
