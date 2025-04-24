@@ -79,9 +79,32 @@ EOL
                     # Set proper permissions
                     chmod 600 /tmp/labsuser.pem
                     
+                    # Create server.js file to copy to remote server
+                    cat > /tmp/server.js << 'EOL'
+var http = require('http');
+var requests = 0;
+var podname = process.env.HOSTNAME || 'default-hostname';  // Fallback in case HOSTNAME is undefined
+var startTime;
+var host;
+var handleRequest = function(request, response) {
+  response.setHeader('Content-Type', 'text/plain');
+  response.writeHead(200);
+  response.write("DevOps Coursework 2! | Running on: ");
+  response.write(host);
+  response.end(" | v=1\\n");
+  console.log("Running On:", host, "| Total Requests:", ++requests, "| App Uptime:", (new Date() - startTime) / 1000, "seconds", "| Log Time:", new Date());
+};
+var www = http.createServer(handleRequest);
+www.listen(8080, '0.0.0.0', function() {  // Ensure it listens on all interfaces
+  startTime = new Date();
+  host = process.env.HOSTNAME || 'default-hostname';  // Fallback value if not available
+  console.log("Started At:", startTime, "| Running On:", host, "\\n");
+});
+EOL
+                    
                     # Connect to the server using the key and execute commands
                     ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
-                        # First, let\'s verify and fix the package.json
+                        # First, let\\'s verify and fix the package.json
                         echo "Checking and fixing package.json file..."
                         cat > /tmp/package.json << EOL
 {
@@ -127,8 +150,13 @@ EOL
                         mkdir -p /tmp/build-temp
                         cp /tmp/package.json /tmp/build-temp/
                         cp /tmp/Dockerfile /tmp/build-temp/
-                        cp ~/devops-cw2/server.js /tmp/build-temp/
-                        
+                    '
+                    
+                    # Now copy the server.js from Jenkins to the remote server
+                    scp -o StrictHostKeyChecking=no -i /tmp/labsuser.pem /tmp/server.js ubuntu@44.223.131.84:/tmp/build-temp/
+                    
+                    # Continue with the deployment on the remote server
+                    ssh -o StrictHostKeyChecking=no -i /tmp/labsuser.pem ubuntu@44.223.131.84 '
                         cd /tmp/build-temp
                         
                         echo "Building a fixed Docker image locally..."
@@ -173,6 +201,7 @@ EOL
                     
                     # Clean up
                     rm -f /tmp/labsuser.pem
+                    rm -f /tmp/server.js
                 '''
             }
         }
