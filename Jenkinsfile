@@ -42,7 +42,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['jenkins-deploy-key']) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@18.234.136.177 '
+                        ssh -o StrictHostKeyChecking=no ubuntu@44.223.131.84 '
                         kubectl set image deployment/cw2-server cw2-server=shaheryarmohammad05/cw2-server:latest
                         kubectl rollout status deployment/cw2-server
                         '
