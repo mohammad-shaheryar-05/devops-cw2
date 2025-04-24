@@ -1,5 +1,5 @@
 {
-  "name": "devops-cw2",
+  "name": "cw2-server",
   "version": "1.0.0",
   "description": "DevOps Coursework 2 Node.js App",
   "main": "server.js",
